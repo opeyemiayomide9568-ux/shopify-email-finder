@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shopify Email Finder</title>
+<style>
+:root{--ink:#17231d;--muted:#718078;--green:#1e6045;--cream:#f5f7f3;--line:#e3e9e4}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--ink);font:15px/1.5 Inter,system-ui,Arial,sans-serif}
+header{height:72px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(24px,calc((100% - 1120px)/2))}
+.brand{font-weight:800;font-size:18px;letter-spacing:-.4px}.brand span{color:var(--green)}.pill{font-size:12px;color:var(--green);background:#eaf3ed;padding:7px 11px;border-radius:99px}
+main{max-width:1120px;margin:52px auto;padding:0 24px}.eyebrow{color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:1.4px;font-size:11px}
+h1{font-size:clamp(32px,5vw,48px);letter-spacing:-1.8px;line-height:1.08;margin:12px 0}.sub{color:var(--muted);max-width:650px}
+.layout{display:grid;grid-template-columns:1.05fr .95fr;gap:22px;margin-top:32px}.panel{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 8px 28px #213c2b0a}
+h2{font-size:17px;margin:0 0 7px}.hint{color:var(--muted);font-size:13px;margin:0 0 18px}
+textarea{width:100%;min-height:190px;resize:vertical;border:1px solid #dce4dd;border-radius:12px;padding:14px;font:14px/1.6 ui-monospace,monospace;outline:none}
+textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px #1e60451a}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+button,.upload{border:0;border-radius:10px;padding:11px 16px;font-weight:700;font-size:13px;cursor:pointer}
+.primary{background:var(--green);color:#fff}.secondary,.upload{background:#eef3ef;color:var(--ink)}button:disabled{opacity:.5;cursor:wait}
+input[type=file]{display:none}.small{font-size:12px;color:var(--muted)}
+.stats{display:flex;gap:12px;margin:18px 0}.stat{flex:1;background:#f6f8f6;border-radius:12px;padding:12px}.stat strong{display:block;font-size:22px}.stat span{font-size:11px;color:var(--muted)}
+.results{margin-top:22px}.empty{border:1px dashed #d5dfd7;border-radius:12px;padding:30px;text-align:center;color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+.email{display:inline-block;background:#edf5ef;color:#205d43;border-radius:7px;padding:4px 7px;margin:2px 3px 2px 0;overflow-wrap:anywhere}
+.status{font-size:11px;color:var(--muted)}.notice{margin-top:18px;padding:13px 15px;background:#fff8e9;border:1px solid #f0e2bf;border-radius:12px;color:#725b2b;font-size:12px}
+@media(max-width:800px){main{margin:32px auto}.layout{grid-template-columns:1fr}header{padding:0 20px}}
+</style>
+</head>
+<body>
+<header><div class="brand">Shopify <span>Email Finder</span></div><div class="pill">Public contact lookup</div></header>
+<main>
+<div class="eyebrow">Business contact research</div>
+<h1>Find publicly listed<br>store contact emails.</h1>
+<p class="sub">Check publicly accessible pages on Shopify stores and organize any business email addresses they openly publish. No private account data or hidden information.</p>
+<div class="layout">
+<section class="panel">
+<h2>Add Shopify store URLs</h2><p class="hint">Paste one URL per line, or upload a TXT/CSV file containing URLs.</p>
+<textarea id="urls" placeholder="https://example-store.myshopify.com&#10;https://another-store.com"></textarea>
+<div class="actions">
+<button class="primary" id="scan">Scan stores</button>
+<label class="upload" for="file">Upload TXT / CSV</label><input id="file" type="file" accept=".txt,.csv">
+<button class="secondary" id="clear">Clear</button>
+</div>
+<p class="small" style="margin-top:12px">Up to 25 stores per scan. Checks a small set of public pages and respects each site's robots.txt.</p>
+</section>
+<section class="panel">
+<h2>Scan overview</h2><p class="hint">Your results will appear here after a scan.</p>
+<div class="stats"><div class="stat"><strong id="stores">0</strong><span>STORES CHECKED</span></div><div class="stat"><strong id="emails">0</strong><span>EMAILS FOUND</span></div></div>
+<div class="empty" id="summary">Ready when you are. Add store URLs to begin.</div>
+<div class="actions"><button class="secondary" id="copy" disabled>Copy emails</button><button class="secondary" id="export" disabled>Export CSV</button></div>
+</section>
+</div>
+<section class="panel results">
+<h2>Results</h2><p class="hint">Emails are shown with the store where they were publicly listed.</p>
+<div id="tableWrap" class="empty">No results yet.</div>
+</section>
+<div class="notice"><strong>Responsible use:</strong> This tool only checks a limited number of publicly accessible pages and skips pages disallowed by robots.txt. It cannot guarantee that every contact address is found. Use business contact details respectfully, follow applicable privacy and anti-spam laws, and honor opt-out requests.</div>
+</main>
+<script>
+let results=[];
+const $=id=>document.getElementById(id);
+$("file").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;$("urls").value=await f.text();});
+$("clear").onclick=()=>{$("urls").value="";results=[];render();$("summary").textContent="Ready when you are. Add store URLs to begin.";};
+$("scan").onclick=async()=>{
+ const urls=$("urls").value.split(/[\\r\\n,;]+/).map(x=>x.trim()).filter(Boolean);
+ if(!urls.length){alert("Add at least one store URL.");return;}
+ $("scan").disabled=true;$("scan").textContent="Scanning…";$("summary").textContent="Checking public store pages. This may take a little while.";
+ try{
+  const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({urls})});
+  const data=await r.json();if(!r.ok)throw new Error(data.error||"Scan failed");
+  results=data.results||[];render();
+ }catch(err){$("summary").textContent=err.message;}
+ finally{$("scan").disabled=false;$("scan").textContent="Scan stores";}
+};
+function render(){
+ const count=results.reduce((n,r)=>n+r.emails.length,0);
+ $("stores").textContent=results.length;$("emails").textContent=count;
+ $("copy").disabled=count===0;$("export").disabled=results.length===0;
+ $("summary").textContent=results.length?`${count} public email address(es) found across ${results.length} store(s).`:"No results yet.";
+ if(!results.length){$("tableWrap").className="empty";$("tableWrap").textContent="No results yet.";return;}
+ $("tableWrap").className="";
+ $("tableWrap").innerHTML="<table><thead><tr><th>Store</th><th>Public email(s)</th><th>Scan status</th></tr></thead><tbody>"+
+ results.map(r=>`<tr><td>${esc(r.store)}</td><td>${r.emails.length?r.emails.map(e=>`<span class="email">${esc(e)}</span>`).join(""):"—"}</td><td class="status">${esc(r.status)}</td></tr>`).join("")+"</tbody></table>";
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+$("copy").onclick=async()=>{const emails=[...new Set(results.flatMap(r=>r.emails))];await navigator.clipboard.writeText(emails.join("\\n"));$("copy").textContent="Copied!";setTimeout(()=>$("copy").textContent="Copy emails",1200);};
+$("export").onclick=async()=>{const r=await fetch("/api/export",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({results})});const blob=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="shopify-public-contacts.csv";a.click();URL.revokeObjectURL(a.href);};
+</script>
+</body></html>
